@@ -1,2 +1,6 @@
 data/
 dlib-models/
+own-images/
+train/
+drowsiness.onnx
+drowsiness1.onnx
