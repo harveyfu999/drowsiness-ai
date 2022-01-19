@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/eyeThreshold"
+        app:showAsAction="never"
+        android:title="Eye threshold"></item>
+    <item
+        android:id="@+id/delayBeforeSignal"
+        app:showAsAction="never"
+        android:title="Detection delay"></item>
+    <item
+        android:id="@+id/delayBeforeSignalFalling"
+        app:showAsAction="never"
+        android:title="Detection delay falling"></item>
+</menu>

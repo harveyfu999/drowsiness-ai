@@ -12,23 +12,45 @@ import torch.nn as nn
 
 model = EfficientNet.from_pretrained("efficientnet-b0", in_channels=1)
 in_features = model._fc.in_features
-model._fc = nn.Sequential(
-    nn.Linear(in_features, 16), nn.ReLU(),
-    nn.Linear(16, 1), nn.Sigmoid()
-)
-#model_path = "bce-12-31-22-31-26-e5-a95-ta99-effnetb3-drowsiness.pth.tar"
+model._fc = nn.Sequential(nn.Linear(in_features, 16), nn.ReLU(),
+                          nn.Linear(16, 1), nn.Sigmoid())
+# model_path = "bce-12-31-22-31-26-e5-a95-ta99-effnetb3-drowsiness.pth.tar"
 model_path = "bce-12-31-22-42-14-e1-a100-ta98-effnetb3-drowsiness.pth.tar"
-model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
+model.load_state_dict(
+    torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
 model.eval()
+
+
+# dummy_input = torch.randn(1, 1, 96, 96, requires_grad=True)
+# torch.onnx.export(model,
+#                   dummy_input,
+#                   "final-model.onnx",
+#                   export_params=True,
+#                   opset_version=12,
+#                   do_constant_folding=True,
+#                   input_names=['input'],
+#                   output_names=['output'],
+#                   dynamic_axes={
+#                       'input': {
+#                           0: 'batch_size'
+#                       },
+#                       'output': {
+#                           0: 'batch_size'
+#                       }
+#                   })
+# import os
+# os.exit()
 
 cam = cv2.VideoCapture(0)
 clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
 
 detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor("dlib-models/shape_predictor_68_face_landmarks_GTX.dat")
-#predictor = dlib.shape_predictor("dlib-models/shape_predictor_5_face_landmarks.dat")
+predictor = dlib.shape_predictor(
+    "dlib-models/shape_predictor_68_face_landmarks_GTX.dat")
+# predictor = dlib.shape_predictor("dlib-models/shape_predictor_5_face_landmarks.dat")
 eye_cascade = cv2.CascadeClassifier()
 eye_cascade.load("haarcascade_eye.xml")
+
 
 def to_rect(r):
     tl = r.tl_corner()
@@ -37,13 +59,16 @@ def to_rect(r):
 
 
 eye_size = 30
+
+
 def get_leye(shape):
     lx = shape[37][0]
     ly = shape[37][1]
     rx = shape[40][0]
     ry = shape[40][1]
-    diff = rx+eye_size - (lx-eye_size)
-    return [(lx-eye_size, ly - eye_size), (rx+eye_size, ly-eye_size + diff)]
+    diff = rx + eye_size - (lx - eye_size)
+    return [(lx - eye_size, ly - eye_size),
+            (rx + eye_size, ly - eye_size + diff)]
 
 
 def get_reye(shape):
@@ -51,8 +76,9 @@ def get_reye(shape):
     ly = shape[43][1]
     rx = shape[46][0]
     ry = shape[46][1]
-    diff = rx+eye_size - (lx-eye_size)
-    return [(lx-eye_size, ly - eye_size), (rx+eye_size, ly-eye_size + diff)]
+    diff = rx + eye_size - (lx - eye_size)
+    return [(lx - eye_size, ly - eye_size),
+            (rx + eye_size, ly - eye_size + diff)]
 
 
 def crop_from_rect(img, rect):
@@ -63,7 +89,7 @@ def run_eye(gray, eye):
     eye_img = crop_from_rect(gray, eye)
     eye_img = cv2.resize(eye_img, dsize=(96, 96))
     eye_img = eye_img[np.newaxis, np.newaxis, ...]
-    eye_img = (2/255 * eye_img - 1)*3
+    eye_img = (2 / 255 * eye_img - 1) * 3
 
     with torch.no_grad():
         out = model(torch.tensor(eye_img, dtype=torch.float)).flatten()[0]
@@ -104,16 +130,31 @@ while True:
 
             leye_out, leye_img = run_eye(gray, leye)
             reye_out, reye_img = run_eye(gray, reye)
-            img = cv2.putText(img, f"0 - closed, 100 - open", (100, 50), cv2.FONT_HERSHEY_PLAIN, 2,
-                              color=(0, 255, 255), thickness=7)
-            img = cv2.putText(img, f"right: {leye_out.numpy()*100:.2f}", (100, 100), cv2.FONT_HERSHEY_PLAIN, 2,
-                              color=(0, 255, 255), thickness=5)
-            img = cv2.putText(img, f"left: {reye_out.numpy()*100:.2f}", (100, 200), cv2.FONT_HERSHEY_PLAIN, 2,
-                              color=(0, 255, 255), thickness=5)
+
+            leye_open = leye_out.numpy() < 0.5
+            reye_open = reye_out.numpy() < 0.5
+
+            img = cv2.putText(img,
+                              f"0 - closed, 100 - open", (100, 50),
+                              cv2.FONT_HERSHEY_PLAIN,
+                              2,
+                              color=(0, 255, 255),
+                              thickness=7)
+            img = cv2.putText(img,
+                              f"right: {leye_out.numpy()*100:.2f}", (100, 100),
+                              cv2.FONT_HERSHEY_PLAIN,
+                              2,
+                              color=(100, 0, 255) if leye_open else (0, 255, 0),
+                              thickness=5)
+            img = cv2.putText(img,
+                              f"left: {reye_out.numpy()*100:.2f}", (100, 200),
+                              cv2.FONT_HERSHEY_PLAIN,
+                              2,
+                              color=(100, 0, 255) if reye_open else (0, 255, 0),
+                              thickness=5)
 
         face = crop_from_rect(img, rect)
         cv2.imshow("face", face)
-
 
     cv2.imshow("img", img)
     frame += 1
@@ -122,7 +163,9 @@ while True:
     if key == 115:
         if leye_img is not None:
             from datetime import datetime
-            cv2.imwrite(f"own-images/open/leye-{datetime.now().strftime('%H-%M-%S')}.png", leye_img)
+            cv2.imwrite(
+                f"own-images/open/leye-{datetime.now().strftime('%H-%M-%S')}.png",
+                leye_img)
     if key == 27:
         break
 
